@@ -1,4 +1,3 @@
-from BUML.metamodel.structural.structural import Association, Class, Multiplicity, Property, BinaryAssociation, PrimitiveDataType, DomainModel
 from BUML.metamodel.structural.structural import Association, Class, Multiplicity, Property, BinaryAssociation,\
 PrimitiveDataType, DomainModel, Generalization
 
