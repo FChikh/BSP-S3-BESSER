@@ -1,0 +1,94 @@
+import streamlit as st
+import psycopg2
+import pandas as pd
+
+def execute_query(query):
+    cursor.execute(query)
+    data = cursor.fetchall()
+    return data
+
+st.title("{{ page_title }}")
+
+db_params = {
+    "host": "{{ host }}",
+    "database": "{{ database }}",
+    "user": "{{ user }}",
+    "password": "{{ password }}",
+}
+
+conn = psycopg2.connect(**db_params)
+cursor = conn.cursor()
+
+st.header("Loaded database: {{ model.name }}")
+
+{% for class in model.get_classes() %}
+st.subheader("{{ class.name }}")
+st.write(f"Displaying data from {{ class.name }} table:")
+query = "SELECT * FROM {{ class.name }};"
+df = pd.read_sql(query, conn)
+# Display the DataFrame with column names
+st.dataframe(df)
+
+associations = "Associations: "
+{% for relation in class.associations %}
+associations += "{{relation.name}}, "
+{% endfor %}
+associations = associations.rstrip(", ")
+st.write(associations)
+
+st.write("Joins by associations")
+{% for association in class.associations %}
+    {% if association.ends|length == 2 -%}
+        {% set ns = namespace(end1=None, end2=None) %}
+        {% for end in association.ends %}
+            {% set ns.end1=end if end.type.name == class.name else ns.end1 %}
+            {% set ns.end2=end if end.type.name != class.name else ns.end2 %}
+        {% endfor %}
+        {% set class1_name = ns.end1.type.name %}
+        {% set class2_name = ns.end2.type.name %}
+        {# Check multiplicity and generate appropriate SQL statement #}
+        {% if ns.end1.multiplicity.max > 1 and ns.end2.multiplicity.max > 1 %}
+        {# N:M Relationship: JOIN via intermediate table #}
+try:
+    query = f"""SELECT {{ class1_name }}.*, {{ class2_name }}.* FROM {{ class1_name }} 
+        JOIN 
+            {{ class1_name }}_{{ class2_name }} ON {{ class1_name }}.{{ class1_name }}_id = {{ class1_name }}_{{ class2_name }}.{{ class1_name }}_id
+        JOIN
+            {{ class2_name }} ON {{ class2_name }}.{{ class2_name }}_id = {{ class1_name }}_{{ class2_name }}.{{ class2_name }}_id"""
+except:
+    query = f"""SELECT {{ class1_name }}.*, {{ class2_name }}.* FROM {{ class1_name }} 
+        JOIN 
+            {{ class2_name }}_{{ class1_name }} ON {{ class1_name }}.{{ class1_name }}_id = {{ class2_name }}_{{ class1_name }}.{{ class1_name }}_id
+        JOIN
+            {{ class2_name }} ON {{ class2_name }}.{{ class2_name }}_id = {{ class2_name }}_{{ class1_name }}.{{ class2_name }}_id"""
+        {% elif ns.end1.multiplicity.max > 1 and ns.end2.multiplicity.max == 1 %}
+        {# N:1 Relationship: JOIN natural #}
+query = f"""SELECT {{ class1_name }}.*, {{ class2_name }}.* FROM {{ class1_name }} 
+        JOIN 
+            {{ class2_name }} ON {{ class1_name }}.{{ class2_name }}_id = {{ class2_name }}.{{ class2_name }}_id"""
+        {% elif ns.end1.multiplicity.max == 1 and ns.end2.multiplicity.max > 1 %}
+query = f"""SELECT {{ class1_name }}.*, {{ class2_name }}.* FROM {{ class2_name }} 
+        JOIN 
+            {{ class1_name }} ON {{ class2_name }}.{{ class1_name }}_id = {{ class1_name }}.{{ class1_name }}_id"""
+        {% elif ns.end1.multiplicity.max == 1 and ns.end2.multiplicity.max == 1 %}
+        {# 1:1 Relationship: JOIN natural #}
+try: 
+    query = f"""SELECT {{ class1_name }}.*, {{ class2_name }}.* FROM {{ class1_name }} 
+        JOIN 
+            {{ class2_name }} ON {{ class1_name }}.{{ class2_name }}_id = {{ class2_name }}.{{ class2_name }}_id"""
+except:
+    query = f"""SELECT {{ class1_name }}.*, {{ class2_name }}.* FROM {{ class2_name }} 
+        JOIN 
+            {{ class1_name }} ON {{ class2_name }}.{{ class1_name }}_id = {{ class1_name }}.{{ class1_name }}_id"""
+
+        {% endif %}
+    {% endif %}
+cursor.execute(query)
+table_data = cursor.fetchall()
+df = pd.DataFrame(table_data)
+# Display the DataFrame with column names
+st.dataframe(df)
+{% endfor %}
+{%- endfor %}
+
+conn.close()
