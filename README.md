@@ -4,7 +4,7 @@ This repository contains all important information about Bachelor's semester pro
 
 ## Project report
 
-A formal [report]() in IEEE format has been produced as a final deliverable for this project.
+A formal [report](BSP-S3_BESSER-report.pdf) in IEEE format has been produced as a final deliverable for this project.
 
 ## Source code
 
